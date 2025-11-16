@@ -1,0 +1,24 @@
+# --- Python / Backend ---
+# Ignore the virtual environment (wherever it is)
+.venv/
+venv/
+ENV/
+
+# Ignore compiled python files (The garbage we saw in your ls)
+__pycache__/
+*.pyc
+
+# Ignore user uploads (keep the folder, but ignore files inside)
+uploads/*
+!uploads/.gitkeep
+
+# --- System ---
+.DS_Store
+.env
+
+# Ignore all files in uploads
+backend/uploads/*
+backend/uploads/signals/*
+
+# Allow the folder itself (optional, but good practice)
+!backend/uploads/.gitkeep
