@@ -1,37 +1,280 @@
 import os
 import shutil
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from io import BytesIO
-import shutil
 import time
-import os
+from io import BytesIO
 
-# Import from parent/sibling directories
-from db import get_connection, file_exists  # Imports the get_connection function from db.py
-from services.parser import parse_filename # Imports the parser
+from fastapi import APIRouter, UploadFile, File, HTTPException
+
+from db import get_connection, file_exists
+from services.parser import parse_filename
 
 router = APIRouter()
 
-# Define a temporary upload folder
+
+# Where we temporarily store uploaded CSVs
 UPLOAD_DIRECTORY = "./uploads"
-if not os.path.exists(UPLOAD_DIRECTORY):
-    os.makedirs(UPLOAD_DIRECTORY)
-
-#two lines below for csv auto pickup testing can delete later code-1.1
-SAMPLE_FILE_NAME = "Artifacts_F1_BBox2_Orange_Operator_URS_10.06.2025.csv"
-SAMPLE_FILE_PATH = os.path.join(UPLOAD_DIRECTORY, SAMPLE_FILE_NAME)
+os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
 
 
-#for csv auto pickup testing can delete later code-1.2 (Final)
+# ============================================================
+# Helper Functions
+# ============================================================
+
+def save_temp_file(file: UploadFile) -> str:
+    """
+    Save the uploaded CSV to the local ./uploads folder.
+    Returns the full file path.
+    """
+    out_path = os.path.join(UPLOAD_DIRECTORY, file.filename)
+    print(f"💾 [Temp Save] Saving file to {out_path} ...")
+
+    try:
+        with open(out_path, "wb+") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            print(f"✔ [Temp Save] File saved: {out_path}")
+    except Exception as e:
+        print(f"❌ [Temp Save] Error while saving: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
+    finally:
+        file.file.close()
+
+    return out_path
+
+
+def check_duplicate_or_raise(filename: str):
+    """
+    If the given filename already exists in the datasets table,
+    raise an HTTP 409 Conflict.
+    """
+    print(f"🔍 [Duplicate Check] Checking if '{filename}' exists in datasets...")
+    if file_exists(filename):
+        print(f"❌ [Duplicate Check] Duplicate found: {filename}",flush=True)
+        raise HTTPException(
+            status_code=409,
+            detail=f"File '{filename}' already exists in database."
+        )
+    print(f"✅ [Duplicate Check] No duplicate found for: {filename}",flush=True)
+
+
+def insert_metadata_and_related(cursor, filename: str, metadata: dict) -> int:
+    print("🗂 [Dataset Insert] Inserting dataset row...")
+    """
+    Insert into datasets, and upsert into persons + flights.
+    Returns the new dataset_id.
+    """
+    # 1) Insert dataset row
+    sql_dataset = """
+        INSERT INTO datasets (
+            file_name,
+            file_date,
+            flight_code,
+            box_name,
+            box_color,
+            role,
+            person_name
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING dataset_id;
+    """
+    
+    cursor.execute(
+        sql_dataset,
+        (
+            filename,
+            metadata.get("file_date"),
+            metadata.get("flight_code"),
+            metadata.get("box_name"),
+            metadata.get("box_color"),
+            metadata.get("role"),
+            metadata.get("person_name"),
+        ),
+    )
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create dataset entry in database."
+        )
+
+    dataset_id = row["dataset_id"]
+
+    # 2) Upsert into persons
+    person_name = metadata.get("person_name")
+    role = metadata.get("role")
+    if person_name:
+        cursor.execute(
+            """
+            INSERT INTO persons (person_name, role)
+            VALUES (%s, %s)
+            ON CONFLICT (person_name)
+            DO UPDATE SET role = EXCLUDED.role;
+            """,
+            (person_name, role),
+        )
+
+    # 3) Upsert into flights
+    flight_code = metadata.get("flight_code")
+    file_date = metadata.get("file_date")
+    if flight_code and file_date:
+        cursor.execute(
+            """
+            INSERT INTO flights (flight_code, flight_date)
+            VALUES (%s, %s)
+            ON CONFLICT (flight_code)
+            DO UPDATE SET flight_date = EXCLUDED.flight_date;
+            """,
+            (flight_code, file_date),
+        )
+
+    return dataset_id
+
+
+def ingest_signals(cursor, dataset_id: int, csv_path: str) -> int:
+    print("🧹 [Staging] TRUNCATE signals_staging before COPY...")
+    """
+    Load the CSV from disk into signals_staging, then insert into signals table.
+    Returns the number of rows inserted into signals.
+    """
+    print(f"📤 [COPY] Copying CSV → signals_staging from {csv_path}...")
+    # A) Clear staging
+    cursor.execute("TRUNCATE TABLE signals_staging;")
+
+    # B) COPY from CSV into staging
+    with open(csv_path, "r") as f:
+        cursor.copy_expert(
+            "COPY signals_staging FROM STDIN WITH (FORMAT CSV, HEADER TRUE)", f
+        )
+    print(f"📥 [Insert Signals] Moving rows to signals for dataset_id={dataset_id}...")
+    # C) Move from staging -> signals hypertable
+    sql_transfer = """
+        INSERT INTO signals (
+            dataset_id, time, header,
+            ax_alpha, ax_beta, ax_gamma,
+            ay_alpha, ay_beta, ay_gamma,
+            az_alpha, az_beta, az_gamma,
+            gx_alpha, gx_beta, gx_gamma,
+            gy_alpha, gy_beta, gy_gamma,
+            gz_alpha, gz_beta, gz_gamma,
+            ecg, frame_separator
+        )
+        SELECT
+            %s AS dataset_id,
+            CAST(time * 1000000 AS BIGINT) AS time, -- seconds -> microseconds
+            header,
+            ax_alpha, ax_beta, ax_gamma,
+            ay_alpha, ay_beta, ay_gamma,
+            az_alpha, az_beta, az_gamma,
+            gx_alpha, gx_beta, gx_gamma,
+            gy_alpha, gy_beta, gy_gamma,
+            gz_alpha, gz_beta, gz_gamma,
+            ecg,
+            frame_seperator  -- CSV typo -> DB column
+        FROM signals_staging;
+    """
+    cursor.execute(sql_transfer, (dataset_id,))
+    row_count = cursor.rowcount
+
+    # D) Cleanup staging
+    cursor.execute("TRUNCATE TABLE signals_staging;")
+
+    return row_count
+
+
+# ============================================================
+# MAIN ALL-IN-ONE ENDPOINT
+# ============================================================
+
+@router.post("/upload-csv")
+async def upload_csv(file: UploadFile = File(...)):
+    print("🔥🔥🔥 upload_csv() STARTED — CODE IS RUNNING FROM THIS FILE 🔥🔥🔥")
+    """
+    ALL-IN-ONE PIPELINE (Disk-based, stable):
+
+    1) Check duplicate filename in datasets.
+    2) Save CSV to ./uploads.
+    3) Parse metadata from filename.
+    4) In ONE DB transaction:
+        - insert into datasets, persons, flights
+        - load CSV into signals_staging via COPY
+        - insert from staging into signals hypertable
+    5) Return dataset_id, metadata, row counts, and duration.
+    """
+
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are allowed.")
+
+    # 1) Check duplicates early
+    check_duplicate_or_raise(file.filename)
+
+    # 2) Save file temporarily
+    start_time = time.time()
+    csv_path = save_temp_file(file)
+
+    # 3) Parse filename → metadata
+    metadata = parse_filename(file.filename)
+    if "file_name_error" in metadata:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Filename parse error: {metadata['file_name_error']}",
+        )
+
+    conn = get_connection()
+    try:
+        conn.autocommit = False  # manual transaction
+        with conn.cursor() as cursor:
+            # 4A) Insert into datasets + persons + flights
+            dataset_id = insert_metadata_and_related(
+                cursor=cursor,
+                filename=file.filename,
+                metadata=metadata,
+            )
+
+            # 4B) Ingest signals from CSV into TimescaleDB
+            rows_inserted = ingest_signals(
+                cursor=cursor,
+                dataset_id=dataset_id,
+                csv_path=csv_path,
+            )
+
+        conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+    finally:
+        conn.close()
+        # Optional: delete CSV to save disk space
+        # try:
+        #     os.remove(csv_path)
+        # except OSError:
+        #     pass
+
+    duration = round(time.time() - start_time, 2)
+
+    return {
+        "message": "Dataset and signals uploaded successfully.",
+        "dataset_id": dataset_id,
+        "file_name": file.filename,
+        "metadata": metadata,
+        "rows_inserted": rows_inserted,
+        "duration_seconds": duration,
+        "temp_path": csv_path,  # for debugging; can remove later
+    }
+
+
+# ============================================================
+# DEV ENDPOINT: auto-upload all CSVs from ./uploads
+# ============================================================
+
 @router.get("/dev/upload-sample")
 async def dev_upload_sample():
     """
-    DEV-ONLY:
-    - Scan ./uploads folder for CSV files
-    - Skip files that already exist in DB
-    - Upload only new files
+    DEV:
+    - Scan ./uploads for .csv files
+    - Skip files already in datasets
+    - For each new file, call the same /upload-csv logic.
     """
     if not os.path.exists(UPLOAD_DIRECTORY):
         return {"error": "Uploads folder does not exist"}
@@ -47,266 +290,27 @@ async def dev_upload_sample():
     for file_name in files:
         file_path = os.path.join(UPLOAD_DIRECTORY, file_name)
 
-        # Check DB
         if file_exists(file_name):
             skipped.append(f"{file_name} (already exists in DB)")
             continue
 
-        # Read file and wrap as UploadFile
         try:
             with open(file_path, "rb") as f:
                 data = f.read()
 
             upload = UploadFile(
                 filename=file_name,
-                file=BytesIO(data)
+                file=BytesIO(data),
             )
 
-            # IMPORTANT FIX — DO NOT PASS conn
             result = await upload_csv(upload)
-
             uploaded.append(result)
-
         except Exception as e:
             skipped.append(f"{file_name} (error: {str(e)})")
 
     return {
         "uploaded": uploaded,
         "skipped": skipped,
-        "total_files": len(files)
+        "total_files": len(files),
     }
 
-
-
-
-# @router.get("/dev/upload-sample")
-# async def dev_upload_sample(conn: psycopg2.extensions.connection = Depends(get_connection)):
-#     """
-#     DEV-ONLY helper:
-#     - Picks a fixed CSV from ./uploads
-#     - Reuses the same logic as /api/upload-csv
-#     - Lets you test without manually choosing a file each time
-#     """
-#     if not os.path.exists(SAMPLE_FILE_PATH):
-#         raise HTTPException(
-#             status_code=404,
-#             detail=f"Sample file not found at {SAMPLE_FILE_PATH}. "
-#                    f"Make sure it exists in the 'uploads' folder."
-#         )
-
-    # Read the file bytes
-    # with open(SAMPLE_FILE_PATH, "rb") as f:
-    #     data = f.read()
-
-    # # Wrap it as an UploadFile so we can reuse upload_csv()
-    # upload = UploadFile(
-    #     filename=SAMPLE_FILE_NAME,
-    #     file=BytesIO(data)
-    # )
-
-    # # Call your existing logic
-    # return await upload_csv(upload, conn)
-
-
-#upload manually via API
-# @router.post("/upload-csv")
-# async def upload_csv(file: UploadFile = File(...), conn: psycopg2.extensions.connection = Depends(get_connection)):
-
-@router.post("/upload-csv")
-async def upload_csv(file: UploadFile = File(...)):
-    conn = get_connection()
-    
-    """
-    This endpoint performs PHASE 4:
-    1. Receives a CSV file.
-    2. Saves it temporarily to the './uploads' folder.
-    3. Parses the filename to extract metadata.
-    4. Inserts that metadata into the 'datasets' table.
-    5. Returns the new 'dataset_id' for the next step.
-    """
-
-    from fastapi.params import Depends as DependsClass
-
-    if conn is None or not hasattr(conn, "cursor"):
-        conn = get_connection()
-
-
-   
-    
-    file_location = os.path.join(UPLOAD_DIRECTORY, file.filename)
-    filename = file.filename
-
-
-    if file_exists(filename):
-        raise HTTPException(
-            status_code=409,   # HTTP 409 = Conflict
-            detail=f"The file '{filename}' already exists in the database."
-        )
-    
-    try:
-        # 1. Save the file temporarily
-        with open(file_location, "wb+") as file_object:
-            shutil.copyfileobj(file.file, file_object)
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
-    finally:
-        file.file.close()
-
-    # 2. Parse metadata from the filename
-    print(f"Parsing filename: {file.filename}")
-    metadata = parse_filename(file.filename)
-    
-    if "file_name_error" in metadata:
-        raise HTTPException(status_code=400, detail=f"Failed to parse filename: {metadata['file_name_error']}")
-
-    print(f"Parsed metadata: {metadata}")
-
-    # 3. Insert metadata into 'datasets' table
-    try:
-        with conn.cursor() as cursor:
-            # SQL query to insert metadata and get the new ID
-            sql = """
-                INSERT INTO datasets (
-                    file_name, file_date, flight_code, 
-                    box_name, box_color, role, person_name
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING dataset_id;
-            """
-            
-            cursor.execute(sql, (
-                file.filename,
-                metadata.get("file_date"),
-                metadata.get("flight_code"),
-                metadata.get("box_name"),
-                metadata.get("box_color"),
-                metadata.get("role"),
-                metadata.get("person_name")
-            ))
-            
-            # Fetch the new dataset_id
-            result = cursor.fetchone()
-            if not result:
-                raise HTTPException(status_code=500, detail="Failed to create dataset entry in database.")
-                
-            new_dataset_id = result['dataset_id']
-            
-            # Commit the transaction
-            conn.commit()
-            
-            print(f"Successfully created dataset record with ID: {new_dataset_id}")
-
-    except Exception as e:
-        conn.rollback() # Rollback on error
-        print(f"Database error: {e}")
-        raise HTTPException(status_code=500, detail=f"Database error: {e}")
-    finally:
-        conn.close()
-
-    # 4. Return success
-    return {
-        "message": "File uploaded and metadata saved.",
-        "dataset_id": new_dataset_id,
-        "file_name": file.filename,
-        "temp_path": file_location,
-        "metadata": metadata
-    }
-
-
-
-
-# Ensure the upload directory exists
-UPLOAD_DIR = "uploads/signals"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-@router.post("/upload-signals/{dataset_id}")
-def upload_signals(dataset_id: int, file: UploadFile = File(...)):
-    """
-    Uploads a large signal CSV, stages it, and moves it to the hypertable.
-    """
-    start_time = time.time()
-    file_path = os.path.join(UPLOAD_DIR, f"dataset_{dataset_id}_{file.filename}")
-
-    # 1. Basic Validation
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(400, "Only .csv files are allowed.")
-
-    conn = get_connection()
-    try:
-        with conn.cursor() as cursor:
-            # 2. Check if dataset exists
-            cursor.execute("SELECT dataset_id FROM datasets WHERE dataset_id = %s", (dataset_id,))
-            if not cursor.fetchone():
-                raise HTTPException(404, f"Dataset ID {dataset_id} not found.")
-
-            # 3. Check if signals already exist (Prevent Duplicates)
-            cursor.execute("SELECT 1 FROM signals WHERE dataset_id = %s LIMIT 1", (dataset_id,))
-            if cursor.fetchone():
-                raise HTTPException(409, f"Signals for Dataset {dataset_id} already exist.")
-
-        # 4. Stream file to disk (Low memory usage)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # 5. Bulk Import Process
-        with conn.cursor() as cursor:
-            print(f"Starting import for Dataset {dataset_id}...")
-
-            # A. Clear Staging
-            cursor.execute("TRUNCATE TABLE signals_staging;")
-
-            # B. Copy CSV to Staging
-            with open(file_path, "r") as f:
-                cursor.copy_expert("COPY signals_staging FROM STDIN WITH (FORMAT CSV, HEADER TRUE)", f)
-            
-            # C. Insert into Final Table (Fixing Time & Typo)
-            sql_transfer = """
-                INSERT INTO signals (
-                    dataset_id, time, header,
-                    ax_alpha, ax_beta, ax_gamma,
-                    ay_alpha, ay_beta, ay_gamma,
-                    az_alpha, az_beta, az_gamma,
-                    gx_alpha, gx_beta, gx_gamma,
-                    gy_alpha, gy_beta, gy_gamma,
-                    gz_alpha, gz_beta, gz_gamma,
-                    ecg, frame_separator
-                )
-                SELECT 
-                    %s, -- dataset_id
-                    CAST(time * 1000000 AS BIGINT), -- Convert Seconds -> Microseconds
-                    header,
-                    ax_alpha, ax_beta, ax_gamma,
-                    ay_alpha, ay_beta, ay_gamma,
-                    az_alpha, az_beta, az_gamma,
-                    gx_alpha, gx_beta, gx_gamma,
-                    gy_alpha, gy_beta, gy_gamma,
-                    gz_alpha, gz_beta, gz_gamma,
-                    ecg, 
-                    frame_seperator -- Maps 'seperator' (CSV) to 'separator' (DB)
-                FROM signals_staging;
-            """
-            cursor.execute(sql_transfer, (dataset_id,))
-            row_count = cursor.rowcount
-            
-            # D. Cleanup
-            cursor.execute("TRUNCATE TABLE signals_staging;")
-            conn.commit()
-
-            duration = round(time.time() - start_time, 2)
-            print(f"✅ Inserted {row_count} rows in {duration}s.")
-
-            return {
-                "message": "Signal import successful",
-                "dataset_id": dataset_id,
-                "rows_inserted": row_count,
-                "duration_seconds": duration
-            }
-
-    except Exception as e:
-        conn.rollback()
-        print(f"❌ Import failed: {e}")
-        raise HTTPException(500, f"Import failed: {str(e)}")
-        
-    finally:
-        conn.close()

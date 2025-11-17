@@ -26,7 +26,7 @@ def get_connection():
 # Utility function to check if a file with the same name already exists in the database
 def file_exists(file_name: str):
     conn = get_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute("SELECT dataset_id FROM datasets WHERE file_name = %s", (file_name,))
     result = cursor.fetchone()
     cursor.close()
