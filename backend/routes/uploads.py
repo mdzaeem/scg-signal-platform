@@ -314,3 +314,57 @@ async def dev_upload_sample():
         "total_files": len(files),
     }
 
+@router.post("/dev/reset-db")
+def dev_reset_db():
+    """
+    DEV-ONLY:
+    Safely reset all project tables for re-testing.
+    Keeps schema & hypertable, only clears data.
+    """
+    print("\n======================================")
+    print("🧹 DEV RESET STARTED — Clearing tables")
+    print("======================================\n")
+
+    conn = get_connection()
+
+    try:
+        conn.autocommit = False
+        with conn.cursor() as cursor:
+
+            print("→ TRUNCATE signals_staging ...")
+            cursor.execute("TRUNCATE TABLE signals_staging;")
+            print("✔ signals_staging cleared\n")
+
+            print("→ TRUNCATE signals (CASCADE) ...")
+            cursor.execute("TRUNCATE TABLE signals CASCADE;")
+            print("✔ signals cleared (CASCADE applied)\n")
+
+            print("→ TRUNCATE datasets (RESTART IDENTITY CASCADE) ...")
+            cursor.execute("TRUNCATE TABLE datasets RESTART IDENTITY CASCADE;")
+            print("✔ datasets cleared and ID reset\n")
+
+            print("→ TRUNCATE persons ...")
+            cursor.execute("TRUNCATE TABLE persons;")
+            print("✔ persons cleared\n")
+
+            print("→ TRUNCATE flights ...")
+            cursor.execute("TRUNCATE TABLE flights;")
+            print("✔ flights cleared\n")
+
+        conn.commit()
+        print("💾 Transaction committed successfully!")
+        print("✅ DEV RESET COMPLETED ✔\n")
+
+        return {
+            "message": "Database reset successful. All tables cleared.",
+            "status": "success"
+        }
+
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ ERROR during reset: {e}\n")
+        raise HTTPException(status_code=500, detail=f"Reset failed: {e}")
+
+    finally:
+        conn.close()
+        print("🔌 DB connection closed.")
