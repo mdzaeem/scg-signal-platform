@@ -125,6 +125,19 @@ def insert_metadata_and_related(cursor, filename: str, metadata: dict) -> int:
             """,
             (flight_code, file_date),
         )
+#zaeem
+    box_name = metadata.get("box_name")
+    color = metadata.get("box_color")
+    if color and box_name:
+        cursor.execute(
+            """
+            INSERT INTO boxes (box_name, color)
+            VALUES (%s, %s)
+            ON CONFLICT (box_name,color)
+            DO NOTHING;
+            """,
+            (box_name,color),
+        )
 
     return dataset_id
 
@@ -350,6 +363,10 @@ def dev_reset_db():
             print("→ TRUNCATE flights ...")
             cursor.execute("TRUNCATE TABLE flights;")
             print("✔ flights cleared\n")
+#added trunk for boxes table
+            print("→ TRUNCATE boxes ...")
+            cursor.execute("TRUNCATE TABLE boxes;")
+            print("✔ boxes cleared\n")
 
         conn.commit()
         print("💾 Transaction committed successfully!")

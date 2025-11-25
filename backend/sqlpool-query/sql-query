@@ -1,0 +1,162 @@
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+
+CREATE TABLE datasets (
+    dataset_id      SERIAL PRIMARY KEY,
+    file_name       TEXT NOT NULL,
+    file_date       DATE,
+    flight_code     TEXT,
+    box_name        TEXT,
+    box_color       TEXT,
+    role            TEXT,
+    person_name     TEXT,
+    uploaded_at     TIMESTAMPTZ DEFAULT now()
+);
+
+
+CREATE TABLE persons (
+    person_name TEXT PRIMARY KEY,
+    role        TEXT
+);
+
+
+CREATE TABLE flights (
+    flight_code TEXT PRIMARY KEY,
+    flight_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS boxes (
+    box_id   SERIAL PRIMARY KEY,
+    box_name VARCHAR(20) NOT NULL,
+    color    VARCHAR(20) NOT NULL,
+    CONSTRAINT boxes_box_name_color_key UNIQUE (box_name, color)
+);
+
+
+CREATE TABLE signals (
+    dataset_id          INT REFERENCES datasets(dataset_id),
+    
+    -- This is the corrected line:
+    time                BIGINT,  -- Store time in microseconds or nanoseconds
+
+    header              BIGINT,
+    ax_alpha            DOUBLE PRECISION,
+    ax_beta             DOUBLE PRECISION,
+    ax_gamma            DOUBLE PRECISION,
+    ay_alpha            DOUBLE PRECISION,
+    ay_beta             DOUBLE PRECISION,
+    ay_gamma            DOUBLE PRECISION,
+    az_alpha            DOUBLE PRECISION,
+    az_beta             DOUBLE PRECISION,
+    az_gamma            DOUBLE PRECISION,
+    gx_alpha            DOUBLE PRECISION,
+    gx_beta             DOUBLE PRECISION,
+    gx_gamma            DOUBLE PRECISION,
+    gy_alpha            DOUBLE PRECISION,
+    gy_beta             DOUBLE PRECISION,
+    gy_gamma            DOUBLE PRECISION,
+    gz_alpha            DOUBLE PRECISION,
+    gz_beta             DOUBLE PRECISION,
+    gz_gamma            DOUBLE PRECISION,
+    ecg                 DOUBLE PRECISION,
+    frame_separator     INT
+);
+
+SELECT create_hypertable(
+    'signals',
+    'time',
+    -- Use an integer chunk interval (100 million microseconds = 100 seconds)
+    chunk_time_interval => 100000000, 
+    if_not_exists       => TRUE
+);
+
+DROP TABLE IF EXISTS signals_staging;
+
+CREATE TABLE signals_staging (
+    time                DOUBLE PRECISION,
+    header              BIGINT,
+    ax_alpha            DOUBLE PRECISION,
+    ax_beta             DOUBLE PRECISION,
+    ax_gamma            DOUBLE PRECISION,
+    ay_alpha            DOUBLE PRECISION,
+    ay_beta             DOUBLE PRECISION,
+    ay_gamma            DOUBLE PRECISION,
+    az_alpha            DOUBLE PRECISION,
+    az_beta             DOUBLE PRECISION,
+    az_gamma            DOUBLE PRECISION,
+    gx_alpha            DOUBLE PRECISION,
+    gx_beta             DOUBLE PRECISION,
+    gx_gamma            DOUBLE PRECISION,
+    gy_alpha            DOUBLE PRECISION,
+    gy_beta             DOUBLE PRECISION,
+    gy_gamma            DOUBLE PRECISION,
+    gz_alpha            DOUBLE PRECISION,
+    gz_beta             DOUBLE PRECISION,
+    gz_gamma            DOUBLE PRECISION,
+    ecg                 DOUBLE PRECISION,
+    frame_seperator     INT  -- ⚠️ Matches the CSV spelling (Typo included)
+);
+
+CREATE INDEX IF NOT EXISTS signals_dataset_time_idx
+    ON signals (dataset_id, time);
+
+	
+-- CREATE TABLE signals (
+--     dataset_id          INT REFERENCES datasets(dataset_id),
+--     time                DOUBLE PRECISION,
+--     header              BIGINT,
+--     ax_alpha            DOUBLE PRECISION,
+--     ax_beta             DOUBLE PRECISION,
+--     ax_gamma            DOUBLE PRECISION,
+--     ay_alpha            DOUBLE PRECISION,
+--     ay_beta             DOUBLE PRECISION,
+--     ay_gamma            DOUBLE PRECISION,
+--     az_alpha            DOUBLE PRECISION,
+--     az_beta             DOUBLE PRECISION,
+--     az_gamma            DOUBLE PRECISION,
+--     gx_alpha            DOUBLE PRECISION,
+--     gx_beta             DOUBLE PRECISION,
+--     gx_gamma            DOUBLE PRECISION,
+--     gy_alpha            DOUBLE PRECISION,
+--     gy_beta             DOUBLE PRECISION,
+--     gy_gamma            DOUBLE PRECISION,
+--     gz_alpha            DOUBLE PRECISION,
+--     gz_beta             DOUBLE PRECISION,
+--     gz_gamma            DOUBLE PRECISION,
+--     ecg                 DOUBLE PRECISION,
+--     frame_separator     INT
+-- );
+-- CREATE INDEX IF NOT EXISTS signals_dataset_time_idx
+--     ON signals (dataset_id, time);
+
+-- --Convert signals table into a Timescale hypertable
+-- SELECT create_hypertable('signals', 'time');
+-- -- Set chunk size (once hypertable exists):
+-- SELECT set_chunk_time_interval('signals', INTERVAL '100 seconds');
+
+
+
+-- First, ensure the table is empty or drop/recreate it if needed
+-- Then run this specifically for float-based time:
+
+
+SELECT *
+FROM datasets
+ORDER BY dataset_id DESC
+LIMIT 10;
+
+SELECT *
+FROM persons
+
+SELECT *
+FROM signals;
+
+TRUNCATE TABLE datasets RESTART IDENTITY CASCADE;
+
+SELECT * FROM signals 
+WHERE dataset_id = 1 
+ORDER BY time ASC 
+LIMIT 20;
+
+
+
