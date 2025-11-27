@@ -22,3 +22,5 @@ backend/uploads/signals/*
 
 # Allow the folder itself (optional, but good practice)
 !backend/uploads/.gitkeep
+
+images/
