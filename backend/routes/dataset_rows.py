@@ -4,9 +4,16 @@ from db import get_connection
 router = APIRouter()
 
 @router.get("/dataset-rows/{dataset_id}")
-def get_dataset_rows(dataset_id: int):
+def get_dataset_rows(dataset_id: int, offset: int = 0, limit: int = 200):
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Get total row count for this dataset
+    cursor.execute(
+        "SELECT COUNT(*) FROM signals WHERE dataset_id = %s;",
+        (dataset_id,)
+    )
+    total_rows = cursor.fetchone()["count"]
 
     cursor.execute("""
         SELECT
@@ -24,8 +31,8 @@ def get_dataset_rows(dataset_id: int):
         FROM signals
         WHERE dataset_id = %s
         ORDER BY time ASC
-        LIMIT 500;
-    """, (dataset_id,))
+        LIMIT %s OFFSET %s;
+    """, (dataset_id, limit, offset))
 
     rows = cursor.fetchall()
 
@@ -33,6 +40,7 @@ def get_dataset_rows(dataset_id: int):
     conn.close()
 
     return {
+        "total_rows": total_rows, 
         "rows": [
             {
                 "dataset_id": r["dataset_id"],

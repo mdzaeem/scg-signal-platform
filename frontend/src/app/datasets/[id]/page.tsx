@@ -3,52 +3,97 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+
 export default function DatasetPage() {
   const params = useParams();
-  const id = params.id;   // ← ✅ Works in Client Components
+  const id = params.id;   //  Works in Client Components
+  const [metaLoading, setMetaLoading] = useState(true);
 
   const [meta, setMeta] = useState<any>(null);
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  //Pagination state
+  const [page, setPage] = useState(1);
+  const limit = 200;
+  const [totalRows, setTotalRows] = useState(0);
 
   // Fetch metadata + rows
+  // useEffect(() => {
+  //   if (!id) return;
+
+  //   async function load() {
+  //     try {
+  //       // 1️⃣ Fetch dataset metadata
+  //       const metaRes = await fetch(`http://127.0.0.1:8000/api/datasets/${id}`);
+  //       const metaJson = await metaRes.json();
+  //       setMeta(metaJson);
+
+  //       // Fetch paginated rows
+  //       const offset = (page - 1) * limit;
+  //       const rowsRes = await fetch(`http://127.0.0.1:8000/api/dataset-rows/${id}?offset=${offset}&limit=${limit}`);
+        
+  //       const rowsJson = await rowsRes.json();
+
+  //       setRows(rowsJson.rows || []);
+  //       setTotalRows(rowsJson.total_rows || 0);
+
+  //     } catch (err) {
+  //       console.error("Dataset load error:", err);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   }
+
+  //   load();
+  // }, [id,page]);
+
   useEffect(() => {
-    if (!id) return;
+  if (!id) return;
 
-    async function load() {
-      try {
-        // 1️⃣ Fetch dataset metadata
-        const metaRes = await fetch(`http://127.0.0.1:8000/api/datasets/${id}`);
-        const metaJson = await metaRes.json();
-        setMeta(metaJson);
-
-        // Fetch rows
-        const rowsRes = await fetch(`http://127.0.0.1:8000/api/dataset-rows/${id}`);
-        const rowsJson = await rowsRes.json();
-
-        if (!rowsJson.rows) {
-          console.log("Backend returned no rows:", rowsJson);
-          setRows([]);
-        } else {
-          setRows(rowsJson.rows);
-        }
-
-      } catch (err) {
-        console.error("Dataset load error:", err);
-      } finally {
-        setLoading(false);
-      }
+  async function loadMeta() {
+    try {
+      const metaRes = await fetch(`http://127.0.0.1:8000/api/datasets/${id}`);
+      const metaJson = await metaRes.json();
+      setMeta(metaJson);
+    } catch (err) {
+      console.error("Metadata load error:", err);
+    } finally {
+      setMetaLoading(false);   // ← IMPORTANT!
     }
-
-    load();
-  }, [id]);
-
-  if (loading) {
-    return <div className="text-white text-center mt-20">Loading dataset...</div>;
   }
 
+  loadMeta();
+}, [id]);  // ONLY ID
+
+useEffect(() => {
+  if (!id) return;
+
+  async function loadRows() {
+    try {
+      setLoading(true);
+      const offset = (page - 1) * limit;
+
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/dataset-rows/${id}?offset=${offset}&limit=${limit}`
+      );
+
+      const json = await res.json();
+      setRows(json.rows || []);
+      setTotalRows(json.total_rows || 0);
+
+    } catch (err) {
+      console.error("Rows load error:", err);
+    } finally {
+      setLoading(false);  // stop loading rows
+    }
+  }
+
+  loadRows();
+}, [id, page]); // ID + PAGE
+
+
   if (!meta) {
-    return <div className="text-red-400 text-center mt-20">Dataset not found.</div>;
+    return <div className="text-white text-center mt-20">Loading dataset...</div>;
   }
 
   return (
@@ -78,7 +123,10 @@ export default function DatasetPage() {
       {/* Rows Table */}
       <h2 className="text-2xl font-bold mb-4">Rows</h2>
 
-      <div className="bg-white text-black p-6 rounded-xl shadow-lg overflow-x-auto">
+      <div className="bg-white text-black p-6 rounded-xl shadow-lg 
+                overflow-x-auto overflow-y-auto 
+                max-h-[600px]">
+        
         <table className="min-w-full text-left">
           <thead>
               <tr>
@@ -109,7 +157,7 @@ export default function DatasetPage() {
 
 
           <tbody>
-            {rows.slice(0, 200).map((row, idx) => (
+            {rows.map((row, idx) => (
               <tr key={idx} className="border-b">
                 <td className="p-2">{row.time}</td>
                 <td className="p-2">{row.header}</td>
@@ -144,10 +192,51 @@ export default function DatasetPage() {
             ))}
           </tbody>
         </table>
+        
 
-        <p className="text-gray-600 mt-4">
-          Showing first 200 rows (for performance)
-        </p>
+        
+      </div>
+
+      {/* PAGINATION BAR */}
+      <div className="flex items-center justify-center gap-6 mt-6">
+
+        {/* Previous button */}
+        <button
+          disabled={page === 1}
+          onClick={() => {
+            setPage(page - 1);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`px-4 py-2 rounded-lg ${
+            page === 1
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-black text-white hover:bg-gray-800"
+          }`}
+        >
+          ← Previous
+        </button>
+
+        {/* Page number */}
+        <span className="text-white">
+          Page {page} of {Math.ceil(totalRows / limit)}
+        </span>
+
+        {/* Next button */}
+        <button
+          disabled={page >= Math.ceil(totalRows / limit)}
+          onClick={() => {
+            setPage(page + 1);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`px-4 py-2 rounded-lg ${
+            page >= Math.ceil(totalRows / limit)
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-black text-white hover:bg-gray-800"
+          }`}
+        >
+          Next →
+        </button>
+
       </div>
     </div>
   );
