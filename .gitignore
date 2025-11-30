@@ -19,6 +19,7 @@ uploads/*
 # Ignore all files in uploads
 backend/uploads/*
 backend/uploads/signals/*
+backend/bulk_uploads/*
 
 # Allow the folder itself (optional, but good practice)
 !backend/uploads/.gitkeep

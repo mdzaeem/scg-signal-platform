@@ -2,13 +2,21 @@
 
 import { useEffect, useState } from "react";
 
-export default function StatsCards({ refreshFlag }: { refreshFlag: number }) {
+export default function StatsCards({ 
+  refreshFlag,
+  onStatsLoaded, 
+}: { refreshFlag: number;
+  onStatsLoaded: (datasetsCount: number) => void;
+ }) {
   const [stats, setStats] = useState<any>(null);
 
   const loadStats = () => {
     fetch("http://localhost:8000/api/stats")
       .then(res => res.json())
-      .then(data => setStats(data))
+      .then(data => {
+        setStats(data);
+        onStatsLoaded(data.datasets);
+      })
       .catch(err => console.log("Stats error:", err));
   };
 

@@ -3,6 +3,8 @@ from routes.uploads import router as upload_router
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from routes.stats import router as stats_router
+from routes.datasets import router as datasets_router
+from routes.dataset_rows import router as dataset_rows_router
 
 
 print("="*50)
@@ -15,6 +17,11 @@ app = FastAPI(title="Sensor Data API")
 app.include_router(upload_router, prefix="/api", tags=["Uploads"])
 
 app.include_router(stats_router, prefix="/api", tags=["Stats"])
+
+app.include_router(datasets_router, prefix="/api", tags=["Datasets"])
+
+app.include_router(dataset_rows_router, prefix="/api", tags=["Dataset Rows"])
+
 
 allow_origins=[
     "http://localhost:3000",
