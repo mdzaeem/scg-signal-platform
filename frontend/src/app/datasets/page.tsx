@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from "react";
 
+type Dataset = {
+  dataset_id: string;
+  file_name: string;
+  person_name?: string;
+  flight_code?: string;
+  box_name?: string;
+};
 
 export default function DatasetsPage() {
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [loading, setLoading] = useState(true);
+  
 
-    const [datasets, setDatasets] = useState([]);
-    const [loading, setLoading] = useState(true);
-    
-    useEffect(() => {
+  useEffect(() => {
     fetch("http://127.0.0.1:8000/api/datasets")
       .then((res) => res.json())
       .then((data) => {
@@ -26,42 +33,36 @@ export default function DatasetsPage() {
           Datasets
         </h1>
 
-        <p className="text-gray-600">
-          This page will display all uploaded datasets.  
-          (Phase 3 will fetch actual data from the backend.)
+        <p className="text-gray-600 mb-4">
+          This page lists all uploaded datasets.
         </p>
 
-        {loading && (
-            <div className="text-gray-600">Loading datasets...</div>
+        {loading ? (
+          <div className="text-gray-600">Loading datasets...</div>
+        ) : (
+          <div className="space-y-4">
+
+            {datasets.map((ds: Dataset) => (
+              <div
+                key={ds.dataset_id}
+                onClick={() => (window.location.href = `/datasets/${ds.dataset_id}`)}
+                className="p-4 border rounded-lg shadow cursor-pointer hover:bg-gray-100 transition"
+              >
+
+                <p className="font-semibold text-lg text-gray-900">
+                    {ds.file_name}
+                </p>
+
+                {/* <p className="text-sm text-gray-600 mt-1">
+                  <strong>Person:</strong> {ds.person_name} &nbsp;—&nbsp;
+                  <strong>Flight:</strong> {ds.flight_code} &nbsp;—&nbsp;
+                  <strong>Box:</strong> {ds.box_name}
+                </p> */}
+
+              </div>
+            ))}
+          </div>
         )}
-
-
-        {!loading && datasets.length === 0 && (
-            <div className="bg-gray-100 p-4 rounded-lg text-gray-600">
-                No datasets found. Upload a dataset first.
-            </div>
-            )}
-
-        {!loading && datasets.length > 0 && (
-            <div className="space-y-4">
-                {datasets.map((ds) => (
-                <div
-                    key={ds.dataset_id}
-                    onClick={() => window.location.href = `/datasets/${ds.dataset_id}`}
-                    className="p-4 border rounded-lg shadow cursor-pointer hover:bg-gray-100 transition"
-                >
-                    <p className="font-bold text-lg">{ds.file_name}</p>
-
-                    <p className="text-sm text-gray-600">
-                    Person: {ds.person_name} — Flight: {ds.flight_code} — Box: {ds.box_name}
-                    </p>
-                </div>
-                ))}
-            </div>
-            )}
-
-
-
 
         <button
           className="mt-6 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800"
