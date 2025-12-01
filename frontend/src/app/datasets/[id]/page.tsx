@@ -123,76 +123,77 @@ useEffect(() => {
       {/* Rows Table */}
       <h2 className="text-2xl font-bold mb-4">Rows</h2>
 
-      <div className="bg-white text-black p-6 rounded-xl shadow-lg 
-                overflow-x-auto overflow-y-auto 
-                max-h-[600px]">
+      <div className="bg-white text-black p-6 rounded-xl shadow-lg">
+
+        <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
         
-        <table className="min-w-full text-left">
-          <thead>
-              <tr>
-                <th className="p-2 border-b">Time</th>
-                <th className="p-2 border-b">Header</th>
-                <th className="p-2 border-b">ax_alpha</th>
-                <th className="p-2 border-b">ax_beta</th>
-                <th className="p-2 border-b">ax_gamma</th>
-                <th className="p-2 border-b">ay_alpha</th>
-                <th className="p-2 border-b">ay_beta</th>
-                <th className="p-2 border-b">ay_gamma</th>
-                <th className="p-2 border-b">az_alpha</th>
-                <th className="p-2 border-b">az_beta</th>
-                <th className="p-2 border-b">az_gamma</th>
-                <th className="p-2 border-b">gx_alpha</th>
-                <th className="p-2 border-b">gx_beta</th>
-                <th className="p-2 border-b">gx_gamma</th>
-                <th className="p-2 border-b">gy_alpha</th>
-                <th className="p-2 border-b">gy_beta</th>
-                <th className="p-2 border-b">gy_gamma</th>
-                <th className="p-2 border-b">gz_alpha</th>
-                <th className="p-2 border-b">gz_beta</th>
-                <th className="p-2 border-b">gz_gamma</th>
-                <th className="p-2 border-b">ECG</th>
-                <th className="p-2 border-b">Frame</th>
-              </tr>
-            </thead>
+          <table className="min-w-full border-collapse bg-white">
+            <thead>
+                <tr>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">Time</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">Header</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">ax_alpha</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">ax_beta</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">ax_gamma</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">ay_alpha</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">ay_beta</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">ay_gamma</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">az_alpha</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">az_beta</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">az_gamma</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gx_alpha</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gx_beta</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gx_gamma</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gy_alpha</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gy_beta</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gy_gamma</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gz_alpha</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gz_beta</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">gz_gamma</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">ECG</th>
+                  <th className="p-2 border-b sticky top-0 bg-white z-10">Frame</th>
+                </tr>
+              </thead>
 
 
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={idx} className="border-b">
-                <td className="p-2">{row.time}</td>
-                <td className="p-2">{row.header}</td>
+            <tbody>
+              {rows.map((row, idx) => (
+                <tr key={idx} className="border-b">
+                  <td className="p-2">{row.time}</td>
+                  <td className="p-2">{row.header}</td>
 
-                <td className="p-2">{row.ax_alpha}</td>
-                <td className="p-2">{row.ax_beta}</td>
-                <td className="p-2">{row.ax_gamma}</td>
+                  <td className="p-2">{row.ax_alpha}</td>
+                  <td className="p-2">{row.ax_beta}</td>
+                  <td className="p-2">{row.ax_gamma}</td>
 
-                <td className="p-2">{row.ay_alpha}</td>
-                <td className="p-2">{row.ay_beta}</td>
-                <td className="p-2">{row.ay_gamma}</td>
+                  <td className="p-2">{row.ay_alpha}</td>
+                  <td className="p-2">{row.ay_beta}</td>
+                  <td className="p-2">{row.ay_gamma}</td>
 
-                <td className="p-2">{row.az_alpha}</td>
-                <td className="p-2">{row.az_beta}</td>
-                <td className="p-2">{row.az_gamma}</td>
+                  <td className="p-2">{row.az_alpha}</td>
+                  <td className="p-2">{row.az_beta}</td>
+                  <td className="p-2">{row.az_gamma}</td>
 
-                <td className="p-2">{row.gx_alpha}</td>
-                <td className="p-2">{row.gx_beta}</td>
-                <td className="p-2">{row.gx_gamma}</td>
+                  <td className="p-2">{row.gx_alpha}</td>
+                  <td className="p-2">{row.gx_beta}</td>
+                  <td className="p-2">{row.gx_gamma}</td>
 
-                <td className="p-2">{row.gy_alpha}</td>
-                <td className="p-2">{row.gy_beta}</td>
-                <td className="p-2">{row.gy_gamma}</td>
+                  <td className="p-2">{row.gy_alpha}</td>
+                  <td className="p-2">{row.gy_beta}</td>
+                  <td className="p-2">{row.gy_gamma}</td>
 
-                <td className="p-2">{row.gz_alpha}</td>
-                <td className="p-2">{row.gz_beta}</td>
-                <td className="p-2">{row.gz_gamma}</td>
+                  <td className="p-2">{row.gz_alpha}</td>
+                  <td className="p-2">{row.gz_beta}</td>
+                  <td className="p-2">{row.gz_gamma}</td>
 
-                <td className="p-2">{row.ecg}</td>
-                <td className="p-2">{row.frame_separator}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <td className="p-2">{row.ecg}</td>
+                  <td className="p-2">{row.frame_separator}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
       </div>
+     </div> 
 
       {/* PAGINATION BAR */}
       <div className="flex items-center justify-center gap-6 mt-6">
