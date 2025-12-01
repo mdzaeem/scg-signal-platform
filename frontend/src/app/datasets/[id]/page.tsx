@@ -192,9 +192,6 @@ useEffect(() => {
             ))}
           </tbody>
         </table>
-        
-
-        
       </div>
 
       {/* PAGINATION BAR */}
