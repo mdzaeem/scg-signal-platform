@@ -1,0 +1,176 @@
+{
+  "dataset_file_name": "Artifacts_F5_BBox2_Orange_Subject_MORITZ_29.10.2025.csv",
+  "parabolas": [
+    {
+      "parabola_number": 1,
+      "start_time": 934.189,
+      "end_time": 1027.973,
+      "two_g_left_time": 964.188,
+      "two_g_right_time": 997.974,
+      "zero_g_duration_s": 1.3980000000000246,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 2,
+      "start_time": 1114.217,
+      "end_time": 1207.894,
+      "two_g_left_time": 1144.216,
+      "two_g_right_time": 1177.895,
+      "zero_g_duration_s": 1.0190000000000055,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 3,
+      "start_time": 1291.971,
+      "end_time": 1395.202,
+      "two_g_left_time": 1321.97,
+      "two_g_right_time": 1365.203,
+      "zero_g_duration_s": 0.5239999999998872,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 4,
+      "start_time": 1475.546,
+      "end_time": 1572.375,
+      "two_g_left_time": 1505.545,
+      "two_g_right_time": 1542.376,
+      "zero_g_duration_s": 1.7920000000001437,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 5,
+      "start_time": 1649.735,
+      "end_time": 1751.181,
+      "two_g_left_time": 1679.734,
+      "two_g_right_time": 1721.182,
+      "zero_g_duration_s": 0.32999999999992724,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 6,
+      "start_time": 1832.911,
+      "end_time": 1928.82,
+      "two_g_left_time": 1862.91,
+      "two_g_right_time": 1898.821,
+      "zero_g_duration_s": 0.8429999999998472,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 7,
+      "start_time": 2193.968,
+      "end_time": 2269.539,
+      "two_g_left_time": 2223.967,
+      "two_g_right_time": 2239.54,
+      "zero_g_duration_s": 0.16499999999996362,
+      "is_valid": false
+    },
+    {
+      "parabola_number": 8,
+      "start_time": 2245.905,
+      "end_time": 2357.139,
+      "two_g_left_time": 2275.904,
+      "two_g_right_time": 2327.14,
+      "zero_g_duration_s": 9.36700000000019,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 9,
+      "start_time": 2437.298,
+      "end_time": 2531.511,
+      "two_g_left_time": 2467.297,
+      "two_g_right_time": 2501.512,
+      "zero_g_duration_s": 0.6750000000001819,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 10,
+      "start_time": 2609.503,
+      "end_time": 2712.396,
+      "two_g_left_time": 2639.502,
+      "two_g_right_time": 2682.397,
+      "zero_g_duration_s": 1.58600000000024,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 11,
+      "start_time": 2786.708,
+      "end_time": 2888.06,
+      "two_g_left_time": 2816.707,
+      "two_g_right_time": 2858.061,
+      "zero_g_duration_s": 0.443000000000211,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 12,
+      "start_time": 2969.569,
+      "end_time": 3067.787,
+      "two_g_left_time": 2999.568,
+      "two_g_right_time": 3037.788,
+      "zero_g_duration_s": 1.086999999999989,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 13,
+      "start_time": 3392.034,
+      "end_time": 3495.47,
+      "two_g_left_time": 3422.033,
+      "two_g_right_time": 3465.471,
+      "zero_g_duration_s": 2.336999999999989,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 14,
+      "start_time": 3573.915,
+      "end_time": 3675.024,
+      "two_g_left_time": 3603.914,
+      "two_g_right_time": 3645.025,
+      "zero_g_duration_s": 1.1339999999995598,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 15,
+      "start_time": 3751.531,
+      "end_time": 3851.859,
+      "two_g_left_time": 3781.53,
+      "two_g_right_time": 3821.86,
+      "zero_g_duration_s": 0.8139999999998508,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 16,
+      "start_time": 4836.49,
+      "end_time": 4937.767,
+      "two_g_left_time": 4866.489,
+      "two_g_right_time": 4907.768,
+      "zero_g_duration_s": 10.981999999999971,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 17,
+      "start_time": 5010.441,
+      "end_time": 5110.18,
+      "two_g_left_time": 5040.44,
+      "two_g_right_time": 5080.181,
+      "zero_g_duration_s": 1.3070000000006985,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 18,
+      "start_time": 5197.573,
+      "end_time": 5290.194,
+      "two_g_left_time": 5227.572,
+      "two_g_right_time": 5260.195,
+      "zero_g_duration_s": 0.9769999999998618,
+      "is_valid": true
+    },
+    {
+      "parabola_number": 19,
+      "start_time": 5367.745,
+      "end_time": 5469.763,
+      "two_g_left_time": 5397.744,
+      "two_g_right_time": 5439.764,
+      "zero_g_duration_s": 0.48399999999946886,
+      "is_valid": true
+    }
+  ]
+}
