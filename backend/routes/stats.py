@@ -20,8 +20,8 @@ def get_stats():
     cursor.execute("SELECT COUNT(*) FROM boxes")
     boxes = cursor.fetchone()["count"]
 
-    #cursor.execute("SELECT COUNT(*) FROM parabolas")
-    parabolas = 0
+    cursor.execute("SELECT COUNT(*) FROM parabolas")
+    parabolas = cursor.fetchone()["count"]
 
     cursor.close()
     conn.close()

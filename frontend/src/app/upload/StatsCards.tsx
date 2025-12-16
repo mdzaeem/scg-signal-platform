@@ -7,7 +7,7 @@ export default function StatsCards({
   onStatsLoaded, 
 }: { refreshFlag: number;
   onStatsLoaded: (datasetsCount: number) => void;
- }) {
+  }) {
   const [stats, setStats] = useState<any>(null);
 
   const loadStats = () => {
@@ -38,7 +38,7 @@ export default function StatsCards({
       <Card label="Persons" value={stats.persons} />
       <Card label="Flights" value={stats.flights} />
       <Card label="Boxes" value={stats.boxes} />
-      <Card label="Parabola" value={stats.parabola} />
+      <Card label="Parabola" value={stats.parabolas} />
     </div>
   );
 }
