@@ -172,7 +172,7 @@ def ingest_signals(cursor, dataset_id: int, csv_path: str) -> int:
         )
         SELECT
             %s AS dataset_id,
-            CAST(time * 1000000 AS BIGINT) AS time, -- seconds -> microseconds
+            CAST(time AS BIGINT) AS time, -- seconds -> microseconds
             header,
             ax_alpha, ax_beta, ax_gamma,
             ay_alpha, ay_beta, ay_gamma,
@@ -367,6 +367,10 @@ def dev_reset_db():
             print("→ TRUNCATE boxes ...")
             cursor.execute("TRUNCATE TABLE boxes;")
             print("✔ boxes cleared\n")
+
+            print("→ TRUNCATE parabolas ...")
+            cursor.execute("TRUNCATE TABLE parabolas;")
+            print("✔ parabolas cleared\n")
 
         conn.commit()
         print("💾 Transaction committed successfully!")
