@@ -16,6 +16,17 @@ export default function DatasetPage() {
   const [page, setPage] = useState(1);
   const limit = 200;
   const [totalRows, setTotalRows] = useState(0);
+  // ---------------- FILTER STATE ----------------
+const [filterMode, setFilterMode] = useState<"none" | "single" | "range">("none");
+
+const [singleParabola, setSingleParabola] = useState<number | "">("");
+const [parabolaFrom, setParabolaFrom] = useState<number | "">("");
+const [parabolaTo, setParabolaTo] = useState<number | "">("");
+
+// This string is what actually gets appended to the fetch URL
+// Examples: ""  |  "&parabola=7"  |  "&parabola_from=4&parabola_to=8"
+const [appliedFilter, setAppliedFilter] = useState<string>("");
+
 
   // Fetch metadata + rows
   // useEffect(() => {
@@ -74,8 +85,9 @@ useEffect(() => {
       const offset = (page - 1) * limit;
 
       const res = await fetch(
-        `http://127.0.0.1:8000/api/dataset-rows/${id}?offset=${offset}&limit=${limit}`
+        `http://127.0.0.1:8000/api/dataset-rows/${id}?offset=${offset}&limit=${limit}${appliedFilter}`
       );
+
 
       const json = await res.json();
       setRows(json.rows || []);
@@ -89,7 +101,7 @@ useEffect(() => {
   }
 
   loadRows();
-}, [id, page]); // ID + PAGE
+}, [id, page, appliedFilter]); // ID + PAGE
 
 
   if (!meta) {
@@ -119,6 +131,105 @@ useEffect(() => {
         <p><strong>Color:</strong> {meta.box_color}</p>
         <p><strong>File Date:</strong> {meta.file_date}</p>
       </div>
+
+      {/* ---------------- FILTER BAR (INSIDE DATASET BOX) ---------------- */}
+      <div className="mt-6 bg-white text-black p-4 rounded-xl shadow-lg">
+        <div className="flex items-center gap-3">
+          <span className="text-l font-semibold text-black-700">
+            Filter
+          </span>
+          {/* Mode */}
+          <select
+            value={filterMode}
+            onChange={(e) => {
+              const m = e.target.value as "none" | "single" | "range";
+              setFilterMode(m);
+
+              // reset inputs when switching mode
+              setSingleParabola("");
+              setParabolaFrom("");
+              setParabolaTo("");
+            }}
+            className="bg-white text-black border border-gray-300 rounded px-3 py-1"
+          >
+            <option value="none">No Filter</option>
+            <option value="single">Single Parabola</option>
+            <option value="range">Parabola Range</option>
+          </select>
+
+          {/* Single parabola */}
+          {filterMode === "single" && (
+            <input
+              type="number"
+              placeholder="Parabola #"
+              value={singleParabola}
+              onChange={(e) => setSingleParabola(e.target.value === "" ? "" : Number(e.target.value))}
+              className="bg-gray-800 bg-white text-black border border-gray-600 rounded px-3 py-1 w-30"
+            />
+          )}
+
+          {/* Range */}
+          {filterMode === "range" && (
+            <>
+              <input
+                type="number"
+                placeholder="From"
+                value={parabolaFrom}
+                onChange={(e) => setParabolaFrom(e.target.value === "" ? "" : Number(e.target.value))}
+                className="border rounded px-2 py-1 w-24"
+              />
+              <input
+                type="number"
+                placeholder="To"
+                value={parabolaTo}
+                onChange={(e) => setParabolaTo(e.target.value === "" ? "" : Number(e.target.value))}
+                className="border rounded px-2 py-1 w-24"
+              />
+            </>
+          )}
+
+          {/* Apply */}
+          <button
+            className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700"
+            onClick={() => {
+              let q = "";
+
+              if (filterMode === "single" && singleParabola !== "") {
+                q = `&parabola=${singleParabola}`;
+              } else if (filterMode === "range" && parabolaFrom !== "" && parabolaTo !== "") {
+                q = `&parabola_from=${parabolaFrom}&parabola_to=${parabolaTo}`;
+              } else {
+                // none / incomplete -> no filter
+                q = "";
+              }
+
+              setPage(1);          // reset pagination
+              setAppliedFilter(q); // triggers refetch via useEffect
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            Apply
+          </button>
+
+          {/* Clear */}
+          <button
+            className="bg-gray-600 text-white px-4 py-1 rounded hover:bg-gray-700"
+            onClick={() => {
+              setFilterMode("none");
+              setSingleParabola("");
+              setParabolaFrom("");
+              setParabolaTo("");
+              setAppliedFilter("");
+              setPage(1);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            Clear
+          </button>
+
+        </div>
+      </div>
+
 
       {/* Rows Table */}
       <h2 className="text-2xl font-bold mb-4">Rows</h2>
@@ -193,7 +304,7 @@ useEffect(() => {
             </tbody>
           </table>
       </div>
-     </div> 
+      </div> 
 
       {/* PAGINATION BAR */}
       <div className="flex items-center justify-center gap-6 mt-6">
