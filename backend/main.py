@@ -6,6 +6,7 @@ from routes.stats import router as stats_router
 from routes.datasets import router as datasets_router
 from routes.dataset_rows import router as dataset_rows_router
 from routes.parabola import router as parabola_router
+from routes.label_studio import router as label_studio_router
 
 
 print("="*50)
@@ -24,6 +25,8 @@ app.include_router(datasets_router, prefix="/api", tags=["Datasets"])
 app.include_router(dataset_rows_router, prefix="/api", tags=["Dataset Rows"])
 
 app.include_router(parabola_router, prefix="/api", tags=["Parabolas"])
+
+app.include_router(label_studio_router, prefix="/api", tags=["Label Studio"])
 
 allow_origins=[
     "http://localhost:3000",
