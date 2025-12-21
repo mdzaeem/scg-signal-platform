@@ -227,6 +227,23 @@ useEffect(() => {
             Clear
           </button>
 
+          <button
+            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+            onClick={async () => {
+              await fetch("http://127.0.0.1:8000/api/label-studio/push", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  dataset_id: id,
+                  filter: appliedFilter, // "" | "&parabola=7" | "&parabola_from=4&parabola_to=8"
+                }),
+              });
+            }}
+          >
+            Visualize
+          </button>
+
+
         </div>
       </div>
 
