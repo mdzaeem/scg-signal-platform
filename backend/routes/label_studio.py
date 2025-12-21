@@ -1,6 +1,7 @@
 import os
 import requests
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/label-studio", tags=["Label Studio"])
 
@@ -48,3 +49,83 @@ def create_test_task():
         "task_id": task["id"],
         "url": f"{LABEL_STUDIO_URL}/projects/{LABEL_STUDIO_PROJECT_ID}/tasks/{task['id']}",
     }
+
+
+class PushToLabelStudioRequest(BaseModel):
+    dataset_id: int
+    filter: str = ""
+    
+@router.post("/push")
+def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
+    dataset_id = payload.dataset_id
+    filter_q = payload.filter or ""
+
+    # --------------------------------------------
+    # 1. Fetch ALL filtered rows from backend API
+    # --------------------------------------------
+    url = (
+        f"http://127.0.0.1:8000/api/dataset-rows/{dataset_id}"
+        f"?offset=0&limit=1000000{filter_q}"
+    )
+
+    r = requests.get(url, timeout=30)
+    if r.status_code != 200:
+        raise HTTPException(status_code=500, detail=r.text)
+
+    data = r.json()
+    rows = data.get("rows", [])
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No rows found for given filter")
+
+    # --------------------------------------------
+    # 2. Convert rows → TimeSeries format
+    # --------------------------------------------
+    timeseries = []
+
+    t0 = rows[0]["time"]  # microseconds
+
+    for row in rows:
+        timeseries.append({
+            "time": (row["time"] - t0) / 1_000_000,  # seconds
+            "ay_alpha": row["ay_alpha"],
+            "ay_beta": row["ay_beta"],
+            "ay_gamma": row["ay_gamma"],
+            "ecg": row["ecg"],
+        })
+
+    task_payload = {
+        "data": {
+            "timeseries": timeseries
+        },
+        "meta": {
+            "dataset_id": dataset_id,
+            "filter": filter_q,
+        }
+    }
+
+    # --------------------------------------------
+    # 3. Push task to Label Studio
+    # --------------------------------------------
+    ls_resp = requests.post(
+        f"{LABEL_STUDIO_URL}/api/projects/{LABEL_STUDIO_PROJECT_ID}/tasks/",
+        headers=HEADERS,
+        json=task_payload,
+        timeout=30,
+    )
+
+    if ls_resp.status_code != 201:
+        raise HTTPException(status_code=500, detail=ls_resp.text)
+
+    task = ls_resp.json()
+
+    # task = ls_resp.json()[0]
+
+    return {
+        "message": "Task pushed to Label Studio",
+        "task_id": task["id"],
+        "task_url": f"{LABEL_STUDIO_URL}/projects/{LABEL_STUDIO_PROJECT_ID}/tasks/{task['id']}",
+        "rows_sent": len(rows),
+    }
+
+
