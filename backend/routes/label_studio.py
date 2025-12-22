@@ -2,6 +2,11 @@ import os
 import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+import csv
+import uuid
+from pathlib import Path
+
+
 
 router = APIRouter(prefix="/label-studio", tags=["Label Studio"])
 
@@ -81,18 +86,21 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
     # --------------------------------------------
     # 2. Convert rows → TimeSeries format
     # --------------------------------------------
-    timeseries = []
-
-    t0 = rows[0]["time"]  # microseconds
+    timeseries = {
+    "time": [],
+    "ay_alpha": [],
+    "ay_beta": [],
+    "ay_gamma": [],
+    "ecg": []
+}
 
     for row in rows:
-        timeseries.append({
-            "time": (row["time"] - t0) / 1_000_000,  # seconds
-            "ay_alpha": row["ay_alpha"],
-            "ay_beta": row["ay_beta"],
-            "ay_gamma": row["ay_gamma"],
-            "ecg": row["ecg"],
-        })
+        timeseries["time"].append(float(row["time"]))
+        timeseries["ay_alpha"].append(row["ay_alpha"])
+        timeseries["ay_beta"].append(row["ay_beta"])
+        timeseries["ay_gamma"].append(row["ay_gamma"])
+        timeseries["ecg"].append(row["ecg"])
+
 
     task_payload = {
         "data": {
@@ -118,8 +126,6 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
         raise HTTPException(status_code=500, detail=ls_resp.text)
 
     task = ls_resp.json()
-
-    # task = ls_resp.json()[0]
 
     return {
         "message": "Task pushed to Label Studio",
