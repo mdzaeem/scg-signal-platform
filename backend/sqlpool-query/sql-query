@@ -34,98 +34,106 @@ CREATE TABLE IF NOT EXISTS boxes (
 
 
 CREATE TABLE signals (
-    dataset_id          INT REFERENCES datasets(dataset_id),
-    
-    -- This is the corrected line:
-    time                BIGINT,  -- Store time in microseconds or nanoseconds
+    dataset_id INT NOT NULL,
+    time DOUBLE PRECISION NOT NULL,
+    header BIGINT,
+    ax_alpha DOUBLE PRECISION,
+    ax_beta DOUBLE PRECISION,
+    ax_gamma DOUBLE PRECISION,
+    ay_alpha DOUBLE PRECISION,
+    ay_beta DOUBLE PRECISION,
+    ay_gamma DOUBLE PRECISION,
+    az_alpha DOUBLE PRECISION,
+    az_beta DOUBLE PRECISION,
+    az_gamma DOUBLE PRECISION,
+    gx_alpha DOUBLE PRECISION,
+    gx_beta DOUBLE PRECISION,
+    gx_gamma DOUBLE PRECISION,
+    gy_alpha DOUBLE PRECISION,
+    gy_beta DOUBLE PRECISION,
+    gy_gamma DOUBLE PRECISION,
+    gz_alpha DOUBLE PRECISION,
+    gz_beta DOUBLE PRECISION,
+    gz_gamma DOUBLE PRECISION,
+    ecg DOUBLE PRECISION,
+    frame_separator INT,
 
-    header              BIGINT,
-    ax_alpha            DOUBLE PRECISION,
-    ax_beta             DOUBLE PRECISION,
-    ax_gamma            DOUBLE PRECISION,
-    ay_alpha            DOUBLE PRECISION,
-    ay_beta             DOUBLE PRECISION,
-    ay_gamma            DOUBLE PRECISION,
-    az_alpha            DOUBLE PRECISION,
-    az_beta             DOUBLE PRECISION,
-    az_gamma            DOUBLE PRECISION,
-    gx_alpha            DOUBLE PRECISION,
-    gx_beta             DOUBLE PRECISION,
-    gx_gamma            DOUBLE PRECISION,
-    gy_alpha            DOUBLE PRECISION,
-    gy_beta             DOUBLE PRECISION,
-    gy_gamma            DOUBLE PRECISION,
-    gz_alpha            DOUBLE PRECISION,
-    gz_beta             DOUBLE PRECISION,
-    gz_gamma            DOUBLE PRECISION,
-    ecg                 DOUBLE PRECISION,
-    frame_separator     INT
+    CONSTRAINT signals_dataset_id_fkey
+        FOREIGN KEY (dataset_id)
+        REFERENCES datasets(dataset_id)
+        ON DELETE CASCADE
 );
 
 SELECT create_hypertable(
     'signals',
     'time',
-    -- Use an integer chunk interval (100 million microseconds = 100 seconds)
-    chunk_time_interval => 100000000, 
-    if_not_exists       => TRUE
+    chunk_time_interval => 50,
+    if_not_exists => TRUE
 );
 
-DROP TABLE IF EXISTS signals_staging;
+CREATE INDEX signals_dataset_time_idx
+ON signals (dataset_id, time);
+
+CREATE INDEX signals_time_idx
+ON signals (time DESC);
+
+
+
+
+
 
 CREATE TABLE signals_staging (
-    time                DOUBLE PRECISION,
-    header              BIGINT,
-    ax_alpha            DOUBLE PRECISION,
-    ax_beta             DOUBLE PRECISION,
-    ax_gamma            DOUBLE PRECISION,
-    ay_alpha            DOUBLE PRECISION,
-    ay_beta             DOUBLE PRECISION,
-    ay_gamma            DOUBLE PRECISION,
-    az_alpha            DOUBLE PRECISION,
-    az_beta             DOUBLE PRECISION,
-    az_gamma            DOUBLE PRECISION,
-    gx_alpha            DOUBLE PRECISION,
-    gx_beta             DOUBLE PRECISION,
-    gx_gamma            DOUBLE PRECISION,
-    gy_alpha            DOUBLE PRECISION,
-    gy_beta             DOUBLE PRECISION,
-    gy_gamma            DOUBLE PRECISION,
-    gz_alpha            DOUBLE PRECISION,
-    gz_beta             DOUBLE PRECISION,
-    gz_gamma            DOUBLE PRECISION,
-    ecg                 DOUBLE PRECISION,
-    frame_seperator     INT  -- ⚠️ Matches the CSV spelling (Typo included)
+    time DOUBLE PRECISION,
+    header BIGINT,
+    ax_alpha DOUBLE PRECISION,
+    ax_beta DOUBLE PRECISION,
+    ax_gamma DOUBLE PRECISION,
+    ay_alpha DOUBLE PRECISION,
+    ay_beta DOUBLE PRECISION,
+    ay_gamma DOUBLE PRECISION,
+    az_alpha DOUBLE PRECISION,
+    az_beta DOUBLE PRECISION,
+    az_gamma DOUBLE PRECISION,
+    gx_alpha DOUBLE PRECISION,
+    gx_beta DOUBLE PRECISION,
+    gx_gamma DOUBLE PRECISION,
+    gy_alpha DOUBLE PRECISION,
+    gy_beta DOUBLE PRECISION,
+    gy_gamma DOUBLE PRECISION,
+    gz_alpha DOUBLE PRECISION,
+    gz_beta DOUBLE PRECISION,
+    gz_gamma DOUBLE PRECISION,
+    ecg DOUBLE PRECISION,
+    frame_seperator INT  -- CSV typo preserved
 );
 
-CREATE INDEX IF NOT EXISTS signals_dataset_time_idx
-    ON signals (dataset_id, time);
+-- parabola table
+CREATE TABLE parabolas (
+    parabola_id        SERIAL PRIMARY KEY,
 
-	
--- CREATE TABLE signals (
---     dataset_id          INT REFERENCES datasets(dataset_id),
---     time                DOUBLE PRECISION,
---     header              BIGINT,
---     ax_alpha            DOUBLE PRECISION,
---     ax_beta             DOUBLE PRECISION,
---     ax_gamma            DOUBLE PRECISION,
---     ay_alpha            DOUBLE PRECISION,
---     ay_beta             DOUBLE PRECISION,
---     ay_gamma            DOUBLE PRECISION,
---     az_alpha            DOUBLE PRECISION,
---     az_beta             DOUBLE PRECISION,
---     az_gamma            DOUBLE PRECISION,
---     gx_alpha            DOUBLE PRECISION,
---     gx_beta             DOUBLE PRECISION,
---     gx_gamma            DOUBLE PRECISION,
---     gy_alpha            DOUBLE PRECISION,
---     gy_beta             DOUBLE PRECISION,
---     gy_gamma            DOUBLE PRECISION,
---     gz_alpha            DOUBLE PRECISION,
---     gz_beta             DOUBLE PRECISION,
---     gz_gamma            DOUBLE PRECISION,
---     ecg                 DOUBLE PRECISION,
---     frame_separator     INT
--- );
+    dataset_id         INT NOT NULL
+        REFERENCES datasets(dataset_id)
+        ON DELETE CASCADE,
+
+    parabola_number    INT NOT NULL,
+
+    start_time         DOUBLE PRECISION NOT NULL,
+    end_time           DOUBLE PRECISION NOT NULL,
+
+    two_g_left_time    DOUBLE PRECISION,
+    two_g_right_time   DOUBLE PRECISION,
+
+    zero_g_duration_s  DOUBLE PRECISION NOT NULL,
+
+    is_valid           BOOLEAN NOT NULL DEFAULT TRUE,
+
+    CONSTRAINT unique_parabola_per_dataset
+        UNIQUE (dataset_id, parabola_number)
+);
+
+
+
+
 -- CREATE INDEX IF NOT EXISTS signals_dataset_time_idx
 --     ON signals (dataset_id, time);
 
@@ -138,6 +146,12 @@ CREATE INDEX IF NOT EXISTS signals_dataset_time_idx
 
 -- First, ensure the table is empty or drop/recreate it if needed
 -- Then run this specifically for float-based time:
+DROP TABLE IF EXISTS parabolas CASCADE;
+
+
+DROP TABLE IF EXISTS signals_staging;
+
+DROP TABLE IF EXISTS signals CASCADE;
 
 
 SELECT *
@@ -146,7 +160,10 @@ ORDER BY dataset_id DESC
 LIMIT 10;
 
 SELECT *
-FROM persons
+FROM persons;
+
+SELECT *
+FROM boxes;
 
 SELECT *
 FROM signals;
@@ -157,6 +174,60 @@ SELECT * FROM signals
 WHERE dataset_id = 1 
 ORDER BY time ASC 
 LIMIT 20;
+
+select * from parabolas;
+
+SELECT min(ay_alpha) from Signals where dataset_id=1;
+
+SELECT parabola_number, start_time, end_time
+FROM parabolas
+WHERE dataset_id = 3
+AND parabola_number BETWEEN 4 AND 8;
+
+SELECT parabola_number, start_time, end_time
+FROM parabolas
+WHERE dataset_id = 1
+AND parabola_number IN (4,7,8);
+
+SELECT time
+FROM signals
+WHERE dataset_id = 1
+ORDER BY time;
+
+SELECT MIN(time), MAX(time)
+FROM signals
+WHERE dataset_id = 3;
+
+SELECT time
+FROM signals
+WHERE dataset_id = 3
+ORDER BY time
+LIMIT 20;
+
+SELECT
+    MIN(start_time) AS expected_start_ms,
+    MAX(end_time) AS expected_end_ms
+FROM parabolas
+WHERE dataset_id = 1
+AND parabola_number = 7 ;
+
+SELECT
+    MIN(start_time)  AS range_start_ms,
+    MAX(end_time)   AS range_end_ms
+FROM parabolas
+WHERE dataset_id = 1
+AND parabola_number BETWEEN 4 AND 8;
+
+SELECT COUNT(*) AS sql_count
+FROM signals
+WHERE dataset_id = 1
+AND time BETWEEN 2191.791 AND 2257.876;
+
+
+select * from signals;
+
+
+
 
 
 

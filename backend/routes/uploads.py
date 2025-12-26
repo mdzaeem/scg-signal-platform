@@ -172,7 +172,7 @@ def ingest_signals(cursor, dataset_id: int, csv_path: str) -> int:
         )
         SELECT
             %s AS dataset_id,
-            CAST(time AS BIGINT) AS time, -- seconds -> microseconds
+            CAST(time AS DOUBLE PRECISION) AS time, -- seconds -> microseconds
             header,
             ax_alpha, ax_beta, ax_gamma,
             ay_alpha, ay_beta, ay_gamma,
