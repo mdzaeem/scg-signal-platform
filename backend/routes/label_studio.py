@@ -167,7 +167,7 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
             # --------------------------------------------
             cursor.execute(
                 """
-                SELECT start_time, end_time, parabola_name
+                SELECT parabola_id, start_time, end_time, parabola_name
                 FROM parabolas
                 WHERE dataset_id = %s AND parabola_number = %s
                 """,
@@ -177,6 +177,7 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
             if not row:
                 continue
 
+            parabola_id = row["parabola_id"]
             start_time = row["start_time"]
             end_time = row["end_time"]
             parabola_name = row["parabola_name"]
@@ -223,9 +224,7 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
                 },
                 "meta": {
                     "dataset_id": dataset_id,
-                    "parabola_number": p_no,
-                    "start_time": start_time,
-                    "end_time": end_time,
+                    "parabola_id": parabola_id,
                 }
             }
 
@@ -260,123 +259,90 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
         "count": len(created_tasks),
     }
 
-# #lines skiupped bit working 
-# @router.post("/push")
-# def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
-#     dataset_id = payload.dataset_id
-#     filter_q = payload.filter or ""
 
+@router.post("/export")
+def export_annotations_from_label_studio():
+    conn = get_connection()
+    cursor = conn.cursor()
+    exported_segments = 0
 
-#     # --------------------------------------------
-#     # 1) Fetch filtered rows directly from DB (NO self-HTTP)
-#     # --------------------------------------------
-#     parabola, parabola_from, parabola_to = parse_filter_string(filter_q)
+    try:
+        page = 1
+        page_size = 100
 
-#     conn = get_connection()
-#     cursor = conn.cursor()
-#     try:
-#         range_start, range_end = resolve_time_window(
-#             cursor,
-#             dataset_id,
-#             parabola,
-#             parabola_from,
-#             parabola_to
-#         )
+        while True:
+            r = requests.get(
+                f"{LABEL_STUDIO_URL}/api/projects/{LABEL_STUDIO_PROJECT_ID}/tasks/",
+                headers=HEADERS,
+                params={"page": page, "page_size": page_size},
+                timeout=30,
+            )
 
-#         print(
-#         f"[LS PUSH] dataset={dataset_id}, "
-#         f"parabola={parabola}, "
-#         f"range=({parabola_from},{parabola_to}), "
-#         f"time_window=({range_start},{range_end})"
-#         )
+            if r.status_code != 200:
+                raise HTTPException(status_code=500, detail=r.text)
 
-#         where_clause = "dataset_id = %s"
-#         params = [dataset_id]
+            resp = r.json()
 
-#         if range_start is not None and range_end is not None:
-#             where_clause += " AND time BETWEEN %s AND %s"
-#             params.extend([range_start, range_end])
+            # Handle both paginated and non-paginated LS responses
+            if isinstance(resp, list):
+                tasks = resp
+            else:
+                tasks = resp.get("results", [])
 
-#         cursor.execute(
-#             f"""
-#             SELECT time, ay_alpha, ay_beta, ay_gamma, ecg
-#             FROM signals
-#             WHERE {where_clause}
-#             ORDER BY time ASC
-#             LIMIT %s;
-#             """,
-#             (*params, MAX_LS_ROWS),
-#         )
+            if not tasks:
+                break
 
-#         rows = cursor.fetchall()
+            for task in tasks:
+                meta = task.get("meta") or {}
+                parabola_id = meta.get("parabola_id")
 
-#         if not rows:
-#             raise HTTPException(status_code=400, detail="No rows found for given filter")
+                if parabola_id is None:
+                    continue
 
-#         if len(rows) >= MAX_LS_ROWS:
-#             print(f"⚠️ Truncated rows to MAX_LS_ROWS={MAX_LS_ROWS}")
+                annotations = task.get("annotations") or []
+                if not annotations:
+                    continue
 
+                # Delete old annotations for this parabola
+                cursor.execute(
+                    "DELETE FROM annotations WHERE parabola_id = %s",
+                    (parabola_id,)
+                )
 
-#     finally:
-#         cursor.close()
-#         conn.close()
+                for ann in annotations:
+                    for res in ann.get("result", []):
+                        value = res.get("value", {})
+                        labels = value.get("timeserieslabels")
+                        if not labels:
+                            continue
 
+                        cursor.execute(
+                            """
+                            INSERT INTO annotations (parabola_id, label, start_time, end_time)
+                            VALUES (%s, %s, %s, %s)
+                            """,
+                            (
+                                parabola_id,
+                                labels[0],
+                                value.get("start"),
+                                value.get("end"),
+                            ),
+                        )
+                        exported_segments += 1
 
-#     # --------------------------------------------
-#     # 2. Convert rows → TimeSeries format
-#     # --------------------------------------------
-#     timeseries = {
-#         "time": [],
-#         "ay_alpha": [],
-#         "ay_beta": [],
-#         "ay_gamma": [],
-#         "ecg": []
-#     }
+            if isinstance(resp, list) or resp.get("next") is None:
+                break
 
-#     for row in rows:
-#         timeseries["time"].append(float(row["time"]))
-#         timeseries["ay_alpha"].append(row["ay_alpha"])
-#         timeseries["ay_beta"].append(row["ay_beta"])
-#         timeseries["ay_gamma"].append(row["ay_gamma"])
-#         timeseries["ecg"].append(row["ecg"])
+            page += 1
 
+        conn.commit()
 
-#     task_payload = {
-#         "data": {
-#             "timeseries": timeseries
-#         },
-#         "meta": {
-#             "dataset_id": dataset_id,
-#             "filter": filter_q,
-#         }
-#     }
+    finally:
+        cursor.close()
+        conn.close()
 
-#     # --------------------------------------------
-#     # 3. Push task to Label Studio
-#     # --------------------------------------------
-#     try:
-#         ls_resp = requests.post(
-#             f"{LABEL_STUDIO_URL}/api/projects/{LABEL_STUDIO_PROJECT_ID}/tasks/",
-#             headers=HEADERS,
-#             json=task_payload,
-#             timeout=30,
-#         )
-#     except requests.RequestException as e:
-#         raise HTTPException(
-#             status_code=502,
-#             detail=f"Label Studio request failed: {e}"
-#         )
-
-#     if ls_resp.status_code != 201:
-#         raise HTTPException(status_code=500, detail=ls_resp.text)
-
-#     task = ls_resp.json()
-
-#     return {
-#         "message": "Task pushed to Label Studio",
-#         "task_id": task["id"],
-#         "task_url": f"{LABEL_STUDIO_URL}/projects/{LABEL_STUDIO_PROJECT_ID}/tasks/{task['id']}",
-#         "rows_sent": len(rows),
-#     }
-
+    return {
+        "message": "Annotations exported successfully",
+        "segments_saved": exported_segments,
+    }
 
