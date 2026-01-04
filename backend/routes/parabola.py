@@ -57,7 +57,11 @@ def import_parabolas_from_json(json_path: str):
     # 4. Resolve dataset_id
     # --------------------------------------------------
     cursor.execute(
-        "SELECT dataset_id FROM datasets WHERE file_name = %s",
+        """
+        SELECT dataset_id, flight_code, person_name
+        FROM datasets
+        WHERE file_name = %s
+        """,
         (dataset_file_name,)
     )
     row = cursor.fetchone()
@@ -71,6 +75,9 @@ def import_parabolas_from_json(json_path: str):
         )
 
     dataset_id = row["dataset_id"]
+    flight_code = row["flight_code"]
+    person_name = row["person_name"]
+
 
     # --------------------------------------------------
     # 5. Insert parabolas
@@ -80,6 +87,7 @@ def import_parabolas_from_json(json_path: str):
 
     for p in parabolas:
         # Skip invalid parabolas if flag exists
+        parabola_name = f"{flight_code}{person_name}P{p['parabola_number']}".upper()
         if "is_valid" in p and p["is_valid"] is False:
             skipped += 1
             continue
@@ -89,18 +97,20 @@ def import_parabolas_from_json(json_path: str):
             INSERT INTO parabolas (
                 dataset_id,
                 parabola_number,
+                parabola_name,
                 start_time,
                 end_time,
                 two_g_left_time,
                 two_g_right_time,
                 zero_g_duration_s
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (dataset_id, parabola_number) DO NOTHING
             """,
             (
                 dataset_id,
                 p["parabola_number"],
+                parabola_name,
                 p["start_time"],
                 p["end_time"],
                 p["two_g_left_time"],

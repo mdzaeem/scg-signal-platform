@@ -167,7 +167,7 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
             # --------------------------------------------
             cursor.execute(
                 """
-                SELECT start_time, end_time
+                SELECT start_time, end_time, parabola_name
                 FROM parabolas
                 WHERE dataset_id = %s AND parabola_number = %s
                 """,
@@ -179,6 +179,7 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
 
             start_time = row["start_time"]
             end_time = row["end_time"]
+            parabola_name = row["parabola_name"]
 
             # --------------------------------------------
             # 2) Fetch ALL rows for THIS parabola (NO LIMIT)
@@ -196,26 +197,6 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
             rows = cursor.fetchall()
             if not rows:
                 continue
-
-            # --------------------------------------------
-            # Fetch dataset metadata ONCE
-            # --------------------------------------------
-            cursor.execute(
-                """
-                SELECT flight_code, person_name
-                FROM datasets
-                WHERE dataset_id = %s
-                """,
-                (dataset_id,),
-            )
-            ds = cursor.fetchone()
-
-            if not ds:
-                raise HTTPException(status_code=404, detail="Dataset not found")
-
-            flight_code = ds["flight_code"] or "FX"
-            person_name = ds["person_name"] or "Unknown"
-
 
             # --------------------------------------------
             # 3) Convert to timeseries
@@ -237,7 +218,7 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
 
             task_payload = {
                 "data": {
-                    "task_name": f"{flight_code} {person_name} P{p_no}",
+                    "task_name": parabola_name,
                     "timeseries": timeseries
                 },
                 "meta": {
