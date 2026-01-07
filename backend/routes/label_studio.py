@@ -1,9 +1,11 @@
 import os
 import requests
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from urllib.parse import parse_qs
 from db import get_connection
+import uuid
 
 # MAX_LS_ROWS = 100000
 
@@ -147,6 +149,44 @@ def resolve_parabola_numbers(parabola, parabola_from, parabola_to):
 
     raise HTTPException(status_code=400, detail="No parabola filter provided")
 
+def get_annotations_for_parabola(cursor, parabola_id: int):
+    cursor.execute(
+        """
+        SELECT label, start_time, end_time
+        FROM annotations
+        WHERE parabola_id = %s
+        ORDER BY start_time ASC
+        """,
+        (parabola_id,),
+    )
+    return cursor.fetchall()
+
+# def build_ls_annotations(db_annotations):
+#     """
+#     Convert DB annotations → Label Studio annotation format
+#     """
+#     if not db_annotations:
+#         return []
+
+#     results = []
+
+#     for ann in db_annotations:
+#         results.append({
+#             "id": str(uuid.uuid4()),
+#             "from_name": "label",
+#             "to_name": "ts",
+#             "type": "timeserieslabels",
+#             "value": {
+#                 "start": float(ann["start_time"]),
+#                 "end": float(ann["end_time"]),
+#                 "timeserieslabels": [ann["label"]],
+#             },
+#         })
+
+#     return [{
+#         "result": results
+#     }]
+
 @router.post("/push")
 def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
     dataset_id = payload.dataset_id
@@ -155,24 +195,17 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
     parabola, parabola_from, parabola_to = parse_filter_string(filter_q)
     parabola_numbers = resolve_parabola_numbers(parabola, parabola_from, parabola_to)
 
-    created_tasks = []
-
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
         for p_no in parabola_numbers:
-            # --------------------------------------------
-            # 1) Resolve time window for THIS parabola
-            # --------------------------------------------
-            cursor.execute(
-                """
+            # 1) Load parabola metadata
+            cursor.execute("""
                 SELECT parabola_id, start_time, end_time, parabola_name
                 FROM parabolas
                 WHERE dataset_id = %s AND parabola_number = %s
-                """,
-                (dataset_id, p_no),
-            )
+            """, (dataset_id, p_no))
             row = cursor.fetchone()
             if not row:
                 continue
@@ -182,26 +215,17 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
             end_time = row["end_time"]
             parabola_name = row["parabola_name"]
 
-            # --------------------------------------------
-            # 2) Fetch ALL rows for THIS parabola (NO LIMIT)
-            # --------------------------------------------
-            cursor.execute(
-                """
+            # 2) Load signals
+            cursor.execute("""
                 SELECT time, ay_alpha, ay_beta, ay_gamma, ecg
                 FROM signals
-                WHERE dataset_id = %s
-                AND time BETWEEN %s AND %s
+                WHERE dataset_id = %s AND time BETWEEN %s AND %s
                 ORDER BY time ASC
-                """,
-                (dataset_id, start_time, end_time),
-            )
+            """, (dataset_id, start_time, end_time))
             rows = cursor.fetchall()
             if not rows:
                 continue
 
-            # --------------------------------------------
-            # 3) Convert to timeseries
-            # --------------------------------------------
             timeseries = {
                 "time": [],
                 "ay_alpha": [],
@@ -217,47 +241,68 @@ def push_filtered_data_to_label_studio(payload: PushToLabelStudioRequest):
                 timeseries["ay_gamma"].append(r["ay_gamma"])
                 timeseries["ecg"].append(r["ecg"])
 
+            # 3) Load DB annotations
+            cursor.execute("""
+                SELECT label, start_time, end_time
+                FROM annotations
+                WHERE parabola_id = %s
+                ORDER BY start_time
+            """, (parabola_id,))
+            db_annotations = cursor.fetchall()
+
+            # 4) Convert to PREDICTIONS (THIS IS KEY)
+            predictions = []
+            for ann in db_annotations:
+                predictions.append({
+                    "id": str(uuid.uuid4()),
+                    "from_name": "label",
+                    "to_name": "ts",
+                    "type": "timeserieslabels",
+                    "value": {
+                        "start": float(ann["start_time"]),
+                        "end": float(ann["end_time"]),
+                        "timeserieslabels": [ann["label"]],
+                    },
+                })
+
+            # 5) Final payload
             task_payload = {
                 "data": {
                     "task_name": parabola_name,
-                    "timeseries": timeseries
+                    "timeseries": timeseries,
                 },
                 "meta": {
                     "dataset_id": dataset_id,
                     "parabola_id": parabola_id,
-                }
+                    "parabola_number": p_no,
+                },
             }
 
-            # --------------------------------------------
-            # 4) Push ONE task to Label Studio
-            # --------------------------------------------
-            try:
-                ls_resp = requests.post(
-                    f"{LABEL_STUDIO_URL}/api/projects/{LABEL_STUDIO_PROJECT_ID}/tasks/",
-                    headers=HEADERS,
-                    json=task_payload,
-                    timeout=30,
-                )
-            except requests.RequestException as e:
-                raise HTTPException(status_code=502, detail=str(e))
+            if predictions:
+                task_payload["predictions"] = [{
+                    "result": predictions
+                }]
 
-            if ls_resp.status_code != 201:
-                raise HTTPException(status_code=500, detail=ls_resp.text)
+            # 6) IMPORT
+            resp = requests.post(
+                f"{LABEL_STUDIO_URL}/api/projects/{LABEL_STUDIO_PROJECT_ID}/import",
+                headers=HEADERS,
+                json=[task_payload],
+                timeout=30,
+            )
 
-            created_tasks.append({
-                "parabola": p_no,
-                "task_id": ls_resp.json()["id"],
-            })
+            if resp.status_code not in (200, 201):
+                raise HTTPException(status_code=500, detail=resp.text)
 
     finally:
         cursor.close()
         conn.close()
 
     return {
-        "message": "Parabola tasks created",
-        "tasks_created": created_tasks,
-        "count": len(created_tasks),
+        "message": "Parabolas imported with predictions",
+        "count": len(parabola_numbers),
     }
+
 
 
 @router.post("/export")
